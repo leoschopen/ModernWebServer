@@ -7,3 +7,9 @@ reference.md
 .vscode
 
 .git
+
+try
+
+root/*.gif
+root/*.jpg
+root/*.mp4
