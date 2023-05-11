@@ -90,6 +90,9 @@ void Log::write_log(int level, const char* format, ...) {
     m_mutex.lock();
     m_count++;
 
+    /**
+     * 日志按时间，按行数切割
+    */
     if (m_today != my_tm.tm_mday ||
         m_count % m_split_lines == 0)  // everyday log
     {
@@ -114,8 +117,8 @@ void Log::write_log(int level, const char* format, ...) {
 
     m_mutex.unlock();
 
-    va_list valst;
-    va_start(valst, format);
+    va_list valst;// 可变参数列表
+    va_start(valst, format);// 将 valst 初始化为变长参数列表的起始位置
 
     string log_str;
     m_mutex.lock();

@@ -12,7 +12,6 @@
 
 using namespace std;
 
-// TODO: 设置日志等级
 
 class Log {
    public:
