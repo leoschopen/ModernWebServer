@@ -130,6 +130,7 @@ int main(int argc, char* argv[]) {
     address.sin_port = htons(port);
 
     int flag = 1;
+    /* SO_REUSEADDR 允许端口被重复使用 */
     setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));
     ret = bind(listenfd, (struct sockaddr*)&address, sizeof(address));
     assert(ret >= 0);
@@ -144,7 +145,7 @@ int main(int argc, char* argv[]) {
     addfd(epollfd, listenfd, false);
     http_conn::m_epollfd = epollfd;
 
-    // 创建管道
+    // 创建管道,注册pipefd[0]上的可读事件
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, pipefd);
     assert(ret != -1);
     setnonblocking(pipefd[1]);

@@ -38,7 +38,7 @@ bool Log::init(const char* file_name, int log_buf_size, int split_lines,
     struct tm* sys_tm = localtime(&t);
     struct tm my_tm = *sys_tm;
 
-    const char* p = strrchr(file_name, '/');
+    const char* p = strrchr(file_name, '/'); // 找到最后一个'/'字符,返回指针
     char log_full_name[256] = {0};
 
     if (p == NULL) {
@@ -128,7 +128,7 @@ void Log::write_log(int level, const char* format, ...) {
                      my_tm.tm_year + 1900, my_tm.tm_mon + 1, my_tm.tm_mday,
                      my_tm.tm_hour, my_tm.tm_min, my_tm.tm_sec, now.tv_usec, s);
 
-    int m = vsnprintf(m_buf + n, m_log_buf_size - 1, format, valst);
+    int m = vsnprintf(m_buf + n, m_log_buf_size - 1, format, valst);//将可变参数列表写入字符串
     m_buf[n + m] = '\n';
     m_buf[n + m + 1] = '\0';
     log_str = m_buf;
