@@ -29,7 +29,7 @@ const char *error_500_form =
     "There was an unusual problem serving the request file.\n";
 
 // 当浏览器出现连接重置时，可能是网站根目录出错或http响应格式出错或者访问的文件中内容完全为空
-const char *doc_root = "/home/webserver/TinyWebServer/root";
+const char *doc_root = "/home/leo/webserver/TinyWebServer/root";
 
 // 将表中的用户名和密码放入map
 map<string, string> users;
@@ -207,6 +207,7 @@ http_conn::LINE_STATUS http_conn::parse_line() {
     return LINE_OPEN;
 }
 
+// 主线程读取浏览器端发来的全部数据
 // 循环读取客户数据，直到无数据可读或对方关闭连接
 // 非阻塞ET工作模式下，需要一次性将数据读完
 bool http_conn::read_once() {
@@ -386,13 +387,28 @@ http_conn::HTTP_CODE http_conn::process_read() {
     return NO_REQUEST;
 }
 
+/**
+ * 该函数将网站根目录和url文件拼接，然后通过stat判断该文件属性。
+ * 另外，为了提高访问速度，通过mmap进行映射，将普通文件映射到内存逻辑地址。
+*/
 http_conn::HTTP_CODE http_conn::do_request() {
     strcpy(m_real_file, doc_root);
     int len = strlen(doc_root);
-    // printf("m_url:%s\n", m_url);
+    printf("m_url:%s\n", m_url);
     const char *p = strrchr(m_url, '/');//从右向左查找字符出现的位置
 
     // 处理cgi
+    //实现登录和注册校验
+    /**
+     * /2CGISQL.cgi
+     *      POST请求，进行登录校验
+     *      验证成功跳转到welcome.html，即资源请求成功页面
+     *      验证失败跳转到logError.html，即登录失败页面
+     * /3CGISQL.cgi
+     *      POST请求，进行注册校验
+     *      注册成功跳转到log.html，即登录页面
+     *      注册失败跳转到registerError.html，即注册失败页面
+    */
     if (cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3')) {
         // 根据标志判断是登录检测还是注册检测
         char flag = m_url[1];
@@ -492,7 +508,6 @@ http_conn::HTTP_CODE http_conn::do_request() {
     close(fd);
     return FILE_REQUEST;
 }
-
 
 void http_conn::unmap() {
     if (m_file_address) {
