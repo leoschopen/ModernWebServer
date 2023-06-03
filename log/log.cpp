@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <time.h>
+
 using namespace std;
 
 Log::Log() {
@@ -17,8 +18,10 @@ Log::~Log() {
         fclose(m_fp);
     }
 }
+
 // 异步需要设置阻塞队列的长度，同步不需要设置
-bool Log::init(const char* file_name, int log_buf_size, int split_lines,
+// m_fp指向相应的log文件
+bool Log::init(const char *file_name, int log_buf_size, int split_lines,
                int max_queue_size) {
     // 如果设置了max_queue_size,则设置为异步
     if (max_queue_size >= 1) {
@@ -35,10 +38,10 @@ bool Log::init(const char* file_name, int log_buf_size, int split_lines,
     m_split_lines = split_lines;
 
     time_t t = time(NULL);
-    struct tm* sys_tm = localtime(&t);
+    struct tm *sys_tm = localtime(&t);
     struct tm my_tm = *sys_tm;
 
-    const char* p = strrchr(file_name, '/'); // 找到最后一个'/'字符,返回指针
+    const char *p = strrchr(file_name, '/'); // 找到最后一个'/'字符,返回指针
     char log_full_name[256] = {0};
 
     if (p == NULL) {
@@ -52,7 +55,7 @@ bool Log::init(const char* file_name, int log_buf_size, int split_lines,
                  log_name);
     }
 
-    m_today = my_tm.tm_mday;
+    m_today = my_tm.tm_mday;;
 
     m_fp = fopen(log_full_name, "a");
     if (m_fp == NULL) {
@@ -62,11 +65,11 @@ bool Log::init(const char* file_name, int log_buf_size, int split_lines,
     return true;
 }
 
-void Log::write_log(int level, const char* format, ...) {
+void Log::write_log(int level, const char *format, ...) {
     struct timeval now = {0, 0};
     gettimeofday(&now, NULL);
     time_t t = now.tv_sec;
-    struct tm* sys_tm = localtime(&t);
+    struct tm *sys_tm = localtime(&t);
     struct tm my_tm = *sys_tm;
     char s[16] = {0};
     switch (level) {

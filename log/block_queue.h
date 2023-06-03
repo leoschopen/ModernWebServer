@@ -111,8 +111,7 @@ class block_queue {
     bool push(const T &item) {
         m_mutex.lock();
         if (m_size >= m_max_size) {
-            m_cond
-                .broadcast();  // 确保所有可能在等待队列不满的条件下进行操作的线程都能被唤醒
+            m_cond.broadcast();  // 确保所有可能在等待队列不满的条件下进行操作的线程都能被唤醒
             m_mutex.unlock();
             return false;
         }

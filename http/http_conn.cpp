@@ -207,7 +207,7 @@ http_conn::LINE_STATUS http_conn::parse_line() {
     return LINE_OPEN;
 }
 
-// 主线程读取浏览器端发来的全部数据
+// 主线程读取浏览器端发来的全部数据，存储到m_read_buf中
 // 循环读取客户数据，直到无数据可读或对方关闭连接
 // 非阻塞ET工作模式下，需要一次性将数据读完
 bool http_conn::read_once() {
@@ -292,9 +292,12 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text) {
 }
 
 // 解析http请求的一个头部信息
+// 返回NO_REQUEST、GET_REQUEST、BAD_REQUEST
 http_conn::HTTP_CODE http_conn::parse_headers(char *text) {
     if (text[0] == '\0') {
+        // 如果遇到空行，说明我们得到了一个正确的http请求
         if (m_content_length != 0) {
+            // 将主状态机转移到CHECK_STATE_CONTENT状态
             m_check_state = CHECK_STATE_CONTENT;
             return NO_REQUEST;
         }
@@ -388,17 +391,22 @@ http_conn::HTTP_CODE http_conn::process_read() {
 }
 
 /**
- * 该函数将网站根目录和url文件拼接，然后通过stat判断该文件属性。
+ * 该函数将网站根目录和url文件拼接，然后通过stat判断该文件属性并返回相应的HTTP_CODE
  * 另外，为了提高访问速度，通过mmap进行映射，将普通文件映射到内存逻辑地址。
-*/
+ */
 http_conn::HTTP_CODE http_conn::do_request() {
     strcpy(m_real_file, doc_root);
     int len = strlen(doc_root);
-    printf("m_url:%s\n", m_url);
-    const char *p = strrchr(m_url, '/');//从右向左查找字符出现的位置
+    printf("m_url:%s\n", m_url);  //  /xxx.jpg
+    printf("m_real_file:%s\n",
+           m_real_file);  //  /home/leo/webserver/TinyWebServer/root
+    printf("doc_root:%s\n",
+           doc_root);  //  /home/leo/webserver/TinyWebServer/root
+
+    const char *p = strrchr(m_url, '/');  // 从右向左查找字符出现的位置
 
     // 处理cgi
-    //实现登录和注册校验
+    // 实现登录和注册校验
     /**
      * /2CGISQL.cgi
      *      POST请求，进行登录校验
@@ -408,19 +416,23 @@ http_conn::HTTP_CODE http_conn::do_request() {
      *      POST请求，进行注册校验
      *      注册成功跳转到log.html，即登录页面
      *      注册失败跳转到registerError.html，即注册失败页面
-    */
+     */
     if (cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3')) {
         // 根据标志判断是登录检测还是注册检测
         char flag = m_url[1];
-
         char *m_url_real = (char *)malloc(sizeof(char) * 200);
         strcpy(m_url_real, "/");
-        strcat(m_url_real, m_url + 2);
+        strcat(m_url_real, m_url + 2);  // /CGISQL.cgi
+
+        // 将src复制到dest后面，返回dest，确保最终复制n个字符
         strncpy(m_real_file + len, m_url_real, FILENAME_LEN - len - 1);
+        // new_m_real_file:/home/leo/webserver/TinyWebServer/root/CGISQL.cgi
         free(m_url_real);
 
         // 将用户名和密码提取出来
+        // m_string:user=admin%40qq.com&password=123456789
         // user=123 & passwd=123
+
         char name[100], password[100];
         int i;
         for (i = 5; m_string[i] != '&'; ++i) name[i - 5] = m_string[i];
@@ -499,13 +511,25 @@ http_conn::HTTP_CODE http_conn::do_request() {
     } else
         strncpy(m_real_file + len, m_url, FILENAME_LEN - len - 1);
 
+    // 通过stat获取请求资源文件信息，成功则将信息更新到m_file_stat结构体
+    // 失败返回NO_RESOURCE状态，表示资源不存在
     if (stat(m_real_file, &m_file_stat) < 0) return NO_RESOURCE;
+
+    //判断文件的权限，是否可读，不可读则返回FORBIDDEN_REQUEST状态
     if (!(m_file_stat.st_mode & S_IROTH)) return FORBIDDEN_REQUEST;
+
+    //判断文件类型，如果是目录，则返回BAD_REQUEST，表示请求报文有误
     if (S_ISDIR(m_file_stat.st_mode)) return BAD_REQUEST;
+
+    //以只读方式获取文件描述符，通过mmap将该文件映射到内存中，将一个文件映射到进程的地址空间中
     int fd = open(m_real_file, O_RDONLY);
     m_file_address =
         (char *)mmap(0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    
+    //避免文件描述符的浪费和占用
     close(fd);
+
+    //表示请求文件存在，且可以访问
     return FILE_REQUEST;
 }
 
@@ -516,9 +540,14 @@ void http_conn::unmap() {
     }
 }
 
+//服务器子线程调用process_write完成响应报文，随后注册epollout事件。
+//服务器主线程检测写事件，并调用http_conn::write函数将响应报文发送给浏览器端。
+// 注意，这里和讲解的代码不一样，为什么要修改？
+// 书中原代码的write函数不严谨，讲解代码中对其中的Bug进行了修复，可以正常传输大文件。
 bool http_conn::write() {
     int temp = 0;
 
+    //若要发送的数据长度为0，则表示响应报文为空，一般不会出现这种情况
     if (bytes_to_send == 0) {
         modfd(m_epollfd, m_sockfd, EPOLLIN);
         init();
@@ -526,9 +555,13 @@ bool http_conn::write() {
     }
 
     while (1) {
+        //将响应报文的状态行、消息头、空行和响应正文发送给浏览器端
         temp = writev(m_sockfd, m_iv, m_iv_count);
 
+        //返回-1表示发送出错，返回0表示发送缓冲区已满，下次继续发送
         if (temp < 0) {
+            //如果TCP写缓冲没有空间，则等待下一轮EPOLLOUT事件。
+            //虽然在此期间，服务器无法立即接收到同一客户的下一个请求，但这可以保证连接的完整性
             if (errno == EAGAIN) {
                 modfd(m_epollfd, m_sockfd, EPOLLOUT);
                 return true;
@@ -539,20 +572,27 @@ bool http_conn::write() {
 
         bytes_have_send += temp;
         bytes_to_send -= temp;
+
+        //第一个iovec头部信息的数据已发送完，发送第二个iovec数据
         if (bytes_have_send >= m_iv[0].iov_len) {
             m_iv[0].iov_len = 0;
             m_iv[1].iov_base = m_file_address + (bytes_have_send - m_write_idx);
             m_iv[1].iov_len = bytes_to_send;
         } else {
+            //继续发送第一个iovec头部信息的数据
             m_iv[0].iov_base = m_write_buf + bytes_have_send;
             m_iv[0].iov_len = m_iv[0].iov_len - bytes_have_send;
         }
 
+        //判断条件，数据已全部发送完
         if (bytes_to_send <= 0) {
             unmap();
+            //在epoll树上重置EPOLLONESHOT事件
             modfd(m_epollfd, m_sockfd, EPOLLIN);
 
+            //浏览器的请求为长连接
             if (m_linger) {
+                //重新初始化HTTP对象
                 init();
                 return true;
             } else {
@@ -562,14 +602,19 @@ bool http_conn::write() {
     }
 }
 
+// 更新m_write_idx指针和缓冲区m_write_buf中的内容。
 bool http_conn::add_response(const char *format, ...) {
     if (m_write_idx >= WRITE_BUFFER_SIZE) return false;
     va_list arg_list;
     va_start(arg_list, format);
+
+    //将数据format从可变参数列表写入缓冲区写，返回写入数据的长度
     int len = vsnprintf(m_write_buf + m_write_idx,
                         WRITE_BUFFER_SIZE - 1 - m_write_idx, format, arg_list);
+    
+    //如果写入的数据长度超过缓冲区剩余空间，则报错
     if (len >= (WRITE_BUFFER_SIZE - 1 - m_write_idx)) {
-        va_end(arg_list);
+        va_end(arg_list);//释放资源,清空可变参数列表
         return false;
     }
     m_write_idx += len;
@@ -600,6 +645,8 @@ bool http_conn::add_blank_line() { return add_response("%s", "\r\n"); }
 bool http_conn::add_content(const char *content) {
     return add_response("%s", content);
 }
+
+//根据do_request的返回状态，服务器子线程调用process_write向m_write_buf中写入响应报文。
 bool http_conn::process_write(HTTP_CODE ret) {
     switch (ret) {
         case INTERNAL_ERROR: {
@@ -624,14 +671,20 @@ bool http_conn::process_write(HTTP_CODE ret) {
             add_status_line(200, ok_200_title);
             if (m_file_stat.st_size != 0) {
                 add_headers(m_file_stat.st_size);
+                //第一个iovec指针指向响应报文缓冲区，长度指向m_write_idx
                 m_iv[0].iov_base = m_write_buf;
                 m_iv[0].iov_len = m_write_idx;
+
+                //第二个iovec指针指向mmap返回的文件指针，长度指向文件大小
                 m_iv[1].iov_base = m_file_address;
                 m_iv[1].iov_len = m_file_stat.st_size;
                 m_iv_count = 2;
+
+                //发送的全部数据为响应报文头部信息和文件大小
                 bytes_to_send = m_write_idx + m_file_stat.st_size;
                 return true;
             } else {
+                //如果请求的资源大小为0，则返回空白html文件
                 const char *ok_string = "<html><body></body></html>";
                 add_headers(strlen(ok_string));
                 if (!add_content(ok_string)) return false;
@@ -640,6 +693,7 @@ bool http_conn::process_write(HTTP_CODE ret) {
         default:
             return false;
     }
+    //除FILE_REQUEST状态外，其余状态只申请一个iovec，指向响应报文缓冲区
     m_iv[0].iov_base = m_write_buf;
     m_iv[0].iov_len = m_write_idx;
     m_iv_count = 1;

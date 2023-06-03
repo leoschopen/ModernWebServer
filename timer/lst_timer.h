@@ -1,25 +1,24 @@
 #ifndef LST_TIMER
 #define LST_TIMER
 
-#include <time.h>
 #include <netinet/in.h>
+#include <time.h>
+
 #include "../log/log.h"
 
 class util_timer;
 
-struct client_data
-{
+struct client_data {
     sockaddr_in address;
     int sockfd;
     util_timer *timer;
 };
 
-class util_timer
-{
-public:
+class util_timer {
+   public:
     util_timer() : prev(NULL), next(NULL) {}
 
-public:
+   public:
     time_t expire;
     void (*cb_func)(client_data *);
     client_data *user_data;
@@ -27,33 +26,26 @@ public:
     util_timer *next;
 };
 
-class sort_timer_lst
-{
-public:
+class sort_timer_lst {
+   public:
     sort_timer_lst() : head(NULL), tail(NULL) {}
-    ~sort_timer_lst()
-    {
+    ~sort_timer_lst() {
         util_timer *tmp = head;
-        while (tmp)
-        {
+        while (tmp) {
             head = tmp->next;
             delete tmp;
             tmp = head;
         }
     }
-    void add_timer(util_timer *timer)
-    {
-        if (!timer)
-        {
+    void add_timer(util_timer *timer) {
+        if (!timer) {
             return;
         }
-        if (!head)
-        {
+        if (!head) {
             head = tail = timer;
             return;
         }
-        if (timer->expire < head->expire)
-        {
+        if (timer->expire < head->expire) {
             timer->next = head;
             head->prev = timer;
             head = timer;
@@ -61,53 +53,42 @@ public:
         }
         add_timer(timer, head);
     }
-    void adjust_timer(util_timer *timer)
-    {
-        if (!timer)
-        {
+    void adjust_timer(util_timer *timer) {
+        if (!timer) {
             return;
         }
         util_timer *tmp = timer->next;
-        if (!tmp || (timer->expire < tmp->expire))
-        {
+        if (!tmp || (timer->expire < tmp->expire)) {
             return;
         }
-        if (timer == head)
-        {
+        if (timer == head) {
             head = head->next;
             head->prev = NULL;
             timer->next = NULL;
             add_timer(timer, head);
-        }
-        else
-        {
+        } else {
             timer->prev->next = timer->next;
             timer->next->prev = timer->prev;
             add_timer(timer, timer->next);
         }
     }
-    void del_timer(util_timer *timer)
-    {
-        if (!timer)
-        {
+    void del_timer(util_timer *timer) {
+        if (!timer) {
             return;
         }
-        if ((timer == head) && (timer == tail))
-        {
+        if ((timer == head) && (timer == tail)) {
             delete timer;
             head = NULL;
             tail = NULL;
             return;
         }
-        if (timer == head)
-        {
+        if (timer == head) {
             head = head->next;
             head->prev = NULL;
             delete timer;
             return;
         }
-        if (timer == tail)
-        {
+        if (timer == tail) {
             tail = tail->prev;
             tail->next = NULL;
             delete timer;
@@ -117,27 +98,22 @@ public:
         timer->next->prev = timer->prev;
         delete timer;
     }
-    void tick()
-    {
-        if (!head)
-        {
+    void tick() {
+        if (!head) {
             return;
         }
-        //printf( "timer tick\n" );
+        // printf( "timer tick\n" );
         LOG_INFO("%s", "timer tick");
         Log::get_instance()->flush();
         time_t cur = time(NULL);
         util_timer *tmp = head;
-        while (tmp)
-        {
-            if (cur < tmp->expire)
-            {
+        while (tmp) {
+            if (cur < tmp->expire) {
                 break;
             }
             tmp->cb_func(tmp->user_data);
             head = tmp->next;
-            if (head)
-            {
+            if (head) {
                 head->prev = NULL;
             }
             delete tmp;
@@ -145,15 +121,12 @@ public:
         }
     }
 
-private:
-    void add_timer(util_timer *timer, util_timer *lst_head)
-    {
+   private:
+    void add_timer(util_timer *timer, util_timer *lst_head) {
         util_timer *prev = lst_head;
         util_timer *tmp = prev->next;
-        while (tmp)
-        {
-            if (timer->expire < tmp->expire)
-            {
+        while (tmp) {
+            if (timer->expire < tmp->expire) {
                 prev->next = timer;
                 timer->next = tmp;
                 tmp->prev = timer;
@@ -163,8 +136,7 @@ private:
             prev = tmp;
             tmp = tmp->next;
         }
-        if (!tmp)
-        {
+        if (!tmp) {
             prev->next = timer;
             timer->prev = prev;
             timer->next = NULL;
@@ -172,7 +144,7 @@ private:
         }
     }
 
-private:
+   private:
     util_timer *head;
     util_timer *tail;
 };

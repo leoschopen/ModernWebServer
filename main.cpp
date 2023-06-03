@@ -59,8 +59,8 @@ void addsig(int sig, void(handler)(int), bool restart = true) {
 
 // 定时处理任务，重新定时以不断触发SIGALRM信号
 void timer_handler() {
-    timer_lst.tick();
-    alarm(TIMESLOT);
+    timer_lst.tick();//遍历定时器列表，检查每个定时器是否到期，并执行相应的事件处理函数。
+    alarm(TIMESLOT);//向操作系统注册一个定时器，指定定时器的时间间隔为TIMESLOT秒,他会在指定的时间间隔后向进程发送一个SIGALRM信号
 }
 
 // 定时器回调函数，删除非活动连接在socket上的注册事件，并关闭
@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) {
 #endif
 
     if (argc <= 1) {
-        printf("usage: %s ip_address port_number\n", basename(argv[0]));
+        printf("usage: %s ./server port_number\n", basename(argv[0]));
         return 1;
     }
 
@@ -148,6 +148,7 @@ int main(int argc, char* argv[]) {
     // 创建管道,注册pipefd[0]上的可读事件
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, pipefd);
     assert(ret != -1);
+    // 管道写端写入信号值，管道读端通过I/O复用系统监测读事件
     setnonblocking(pipefd[1]);
     addfd(epollfd, pipefd[0], false);
 
@@ -232,7 +233,7 @@ int main(int argc, char* argv[]) {
                 continue;
 #endif
             }
-
+            // 发生三种情况，1. 对端断开连接或半关闭连接，2. 文件描述符被挂起或被关闭事件，3. 发生错误 的任意一种，则处理
             else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
                 // 服务器端关闭连接，移除对应的定时器
                 util_timer* timer = users_timer[sockfd].timer;
@@ -243,7 +244,7 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            // 处理信号
+            // 有定时器信号
             else if ((sockfd == pipefd[0]) && (events[i].events & EPOLLIN)) {
                 int sig;
                 char signals[1024];
