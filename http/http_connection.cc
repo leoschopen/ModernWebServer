@@ -35,13 +35,13 @@ const char *doc_root = "/home/leo/webserver/ModernWebserver/root";
 int HttpConnection::epollfd_ = -1;
 int HttpConnection::user_count_ = 0;
 
-// 对文件描述符设置非阻塞
-int setnonblocking(int fd) {
-    int old_option = fcntl(fd, F_GETFL);
-    int new_option = old_option | O_NONBLOCK;
-    fcntl(fd, F_SETFL, new_option);
-    return old_option;
-}
+//// 对文件描述符设置非阻塞
+//int setnonblocking(int fd) {
+//    int old_option = fcntl(fd, F_GETFL);
+//    int new_option = old_option | O_NONBLOCK;
+//    fcntl(fd, F_SETFL, new_option);
+//    return old_option;
+//}
 
 // 将内核事件表注册读事件，ET模式，选择开启EPOLLONESHOT
 void add_fd(int epollfd, int fd, bool one_shot) {
@@ -68,7 +68,7 @@ void add_fd(int epollfd, int fd, bool one_shot) {
 
     if (one_shot) event.events |= EPOLLONESHOT;
     epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event);
-    setnonblocking(fd);
+    socketutils::setnonblocking(fd);
 }
 
 // 从内核时间表删除描述符
@@ -227,7 +227,7 @@ void HttpConnection::init_mysql_result(SqlConnectionPool *connPool) {
     while (MYSQL_ROW row = mysql_fetch_row(result)) {
         string temp1(row[0]);
         string temp2(row[1]);
-        std::cout<<"初始化数据库，用户名，密码："<< temp1 << " " << temp2 << std::endl;
+        // std::cout<<"初始化数据库，用户名，密码："<< temp1 << " " << temp2 << std::endl;
         users_map_[temp1] = temp2;
     }
 }
@@ -457,9 +457,9 @@ HttpConnection::LINE_STATUS HttpConnection::parse_line() {
 HttpConnection::HTTP_CODE HttpConnection::do_request() {
 //    strcpy(real_file_,  server_utils_->getServerRoot().c_str());
     strcpy(real_file_,doc_root);
-    printf("m_url:%s\n", url_);  //  /xxx.jpg
-    printf("m_real_file:%s\n",
-           real_file_);  //  /home/leo/webserver/TinyWebServer/root
+//    printf("m_url:%s\n", url_);  //  /xxx.jpg
+//    printf("m_real_file:%s\n",
+//           real_file_);  //  /home/leo/webserver/TinyWebServer/root
     int len =  strlen(doc_root);
     const char *p = strrchr(url_, '/');
     // 实现登录和注册校验

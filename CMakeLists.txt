@@ -5,7 +5,7 @@ project(server2)
 set(CMAKE_CXX_STANDARD 11)
 
 set(SOURCES
-        main.cpp
+        main.cc
         log/server_log.cc
         log/server_log.h
         log/block_queue.h

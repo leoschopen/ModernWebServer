@@ -1,10 +1,8 @@
 #include <arpa/inet.h>
-#include <errno.h>
-#include <fcntl.h>
+#include <cerrno>
 #include <netinet/in.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -14,6 +12,7 @@
 #include "./http/http_connection.h"
 #include "./threadpool/threadpool.h"
 #include "./timer/server_timer.h"
+#include "./utils/socket_utils.h"
 
 #define MAX_FD 65536            // 最大文件描述符
 #define MAX_EVENT_NUMBER 10000  // 最大事件数
@@ -28,7 +27,7 @@
 // 这三个函数在http_conn.cpp中定义，改变链接属性
 extern int add_fd(int epollfd, int fd, bool one_shot);
 extern int remove_fd(int epollfd, int fd);
-extern int setnonblocking(int fd);
+//extern int setnonblocking(int fd);
 
 // 设置定时器相关参数
 static int pipefd[2];
@@ -52,7 +51,7 @@ void addsig(int sig, void(handler)(int), bool restart = true) {
     if (restart)
         sa.sa_flags |= SA_RESTART;
     sigfillset(&sa.sa_mask);
-    assert(sigaction(sig, &sa, NULL) != -1);
+    assert(sigaction(sig, &sa, nullptr) != -1);
 }
 
 // 定时处理任务，重新定时以不断触发SIGALRM信号
@@ -113,8 +112,7 @@ int main(int argc, char* argv[]) {
     // 初始化数据库读取表
     users->init_mysql_result(connPool);
 
-    int listenfd = socket(PF_INET, SOCK_STREAM, 0);
-    assert(listenfd >= 0);
+    int listenfd = socketutils::Socket(PF_INET, SOCK_STREAM, 0);
 
     // struct linger tmp={1,0};
     // SO_LINGER若有数据待发送，延迟关闭
@@ -130,18 +128,8 @@ int main(int argc, char* argv[]) {
     int flag = 1;
     /* SO_REUSEADDR 允许端口被重复使用 */
     setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));
-    ret = bind(listenfd, (struct sockaddr*)&address, sizeof(address));
+    ret = socketutils::Bind(listenfd, (struct sockaddr*)&address, sizeof(address));
 
-    // 打印listenfd的ip和端口号
-//    struct sockaddr_in addr;
-//    socklen_t len = sizeof(addr);
-//    getsockname(listenfd, (struct sockaddr*)&addr, &len);
-//    char ip[20];
-//    printf("ip=%s, port=%d\n", inet_ntop(AF_INET, &addr.sin_addr, ip, sizeof(ip)), ntohs(addr.sin_port));
-//
-//    return 0;
-
-    assert(ret >= 0);
     ret = listen(listenfd, 5);
     assert(ret >= 0);
 
@@ -157,7 +145,7 @@ int main(int argc, char* argv[]) {
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, pipefd);
     assert(ret != -1);
     // 管道写端写入信号值，管道读端通过I/O复用系统监测读事件
-    setnonblocking(pipefd[1]);
+    socketutils::setnonblocking(pipefd[1]);
     add_fd(epollfd, pipefd[0], false);
 
     addsig(SIGALRM, sig_handler, false);

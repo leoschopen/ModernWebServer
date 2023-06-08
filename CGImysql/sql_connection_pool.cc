@@ -102,6 +102,7 @@ SqlConnectionPool *SqlConnectionPool::GetInstance() {
 
 SqlConnectionPool::~SqlConnectionPool() {
     DestroyPool();
+    delete server_utils_;
 }
 
 

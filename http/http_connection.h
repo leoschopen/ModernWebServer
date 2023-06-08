@@ -87,7 +87,7 @@ public:
     bool write(); // 非阻塞写操作
     sockaddr_in *get_address() { return &address_; }
 
-    void init_mysql_result(SqlConnectionPool *connPool); // 初始化数据库读取表
+    void init_mysql_result(SqlConnectionPool *connPool); // 数据库读取表
 
 private:
     void init(); // 初始化连接
