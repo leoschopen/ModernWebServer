@@ -1,35 +1,28 @@
-# C++11 Standard High Performance WebServer
+# C++11标准高性能Web服务器
 
-This project is a high-performance web server based on the C++11 standard, implemented using the Reactor pattern. The server processes HTTP requests using a multi-threaded approach, supporting static resource access and dynamic page generation, with high concurrency, low latency, and high stability. Additionally, the server provides a variety of configuration options and performance optimization strategies, allowing for flexible adjustments based on actual needs.
+该项目是一个基于C++11标准，采用Reactor模式实现的高性能Web服务器。服务器使用多线程处理HTTP请求，支持静态资源访问和动态页面生成，具有高并发性、低延迟和高稳定性。此外，该服务器提供了各种配置选项和性能优化策略，可根据实际需求进行灵活调整。
 
-## Key Features
+## 主要特点：
+- HTTP协议解析：支持HTTP/1.1协议解析，包括请求行、头部和正文。
+- 多线程处理：采用多线程处理HTTP请求，提高并发性能。
+- 静态资源访问：支持访问静态资源，包括HTML、CSS、JavaScript和图像等。
+- 动态页面生成：支持使用CGI实现动态页面生成。
+- 配置选项：提供各种配置选项，包括端口号、线程数、日志级别等。
+- 性能优化：提供各种性能优化策略，包括TCP_NODELAY、SO_REUSEADDR、EPOLLET等。
 
-- HTTP protocol parsing: Supports HTTP/1.1 protocol parsing, including request lines, headers, and bodies.
-- Multi-threaded processing: Uses a multi-threaded approach to handle HTTP requests, improving concurrency.
-- Static resource access: Supports access to static resources, including HTML, CSS, JavaScript, and images.
-- Dynamic page generation: Supports dynamic page generation, implemented using CGI.
-- Configuration options: Provides a variety of configuration options, including port numbers, thread counts, log levels, etc.
-- Performance optimization: Provides a variety of performance optimization strategies, including TCP_NODELAY, SO_REUSEADDR, EPOLLET, etc.
+## 技术栈：
+C++11标准
+Reactor模式
+多线程编程
+网络编程
+CGI编程
 
-## Technology Stack
+## 系统架构：
+该系统实现了Reactor模式，包括一个主线程和多个工作线程。主线程负责监听和接受网络连接，并将连接分配给工作线程进行处理。工作线程使用多路复用技术实现并发处理，包括解析HTTP请求、访问静态资源、生成动态页面等。该系统使用C++11编写，充分利用C++11标准的新特性提高代码可读性和可维护性。
 
-- C++11 standard
-- Reactor pattern
-- Multi-threaded programming
-- Network programming
-- CGI programming
+## 性能测试：
+该系统经过多次性能测试，具有高并发性和稳定性。测试环境为CentOS 7.0 x64，Intel(R) Xeon(R) CPU E5-2620 v2 @ 2.10GHz，16GB内存和1Gbps网络卡。
 
-## System Architecture
-
-
-
-The system implements the Reactor pattern, including one main thread and multiple worker threads. The main thread is responsible for listening and accepting network connections, and assigns connections to worker threads for processing. The worker threads implement concurrent processing using multiplexing techniques, including parsing HTTP requests, accessing static resources, generating dynamic pages, etc. The system is written in C++11, taking full advantage of the new features of the C++11 standard to improve code readability and maintainability.
-
-## Performance Testing
-
-The system has undergone multiple performance tests and has high concurrency and stability. The test environment is CentOS 7.0 x64, Intel(R) Xeon(R) CPU E5-2620 v2 @ 2.10GHz, 16GB memory, and a 1Gbps network card.
-
-The test results are as follows:
-
-- Static page request: QPS can reach about 100,000, with response times under 1ms.
-- Dynamic page request: QPS can reach about 50,000, with response times under 5ms.
+测试结果如下：
+静态页面请求：QPS可以达到约100,000，响应时间低于1ms。
+动态页面请求：QPS可以达到约50,000，响应时间低于5ms。
