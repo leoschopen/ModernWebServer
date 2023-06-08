@@ -12,8 +12,6 @@ set(SOURCES
         lock/locker.h
         http/http_connection.cc
         http/http_connection.h
-#        http/http_conn.h
-#        http/http_conn.cpp
         threadpool/threadpool.h
         utils/server_utils.cc
         utils/server_utils.h

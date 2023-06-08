@@ -11,9 +11,8 @@
 #include <cassert>
 
 #include "./CGImysql/sql_connection_pool.h"
-//#include "./http/http_connection.h"
+#include "./http/http_connection.h"
 #include "./threadpool/threadpool.h"
-#include "./http/http_conn.h"
 #include "./timer/server_timer.h"
 
 #define MAX_FD 65536            // 最大文件描述符
@@ -28,7 +27,7 @@
 
 // 这三个函数在http_conn.cpp中定义，改变链接属性
 extern int add_fd(int epollfd, int fd, bool one_shot);
-extern int remove(int epollfd, int fd);
+extern int remove_fd(int epollfd, int fd);
 extern int setnonblocking(int fd);
 
 // 设置定时器相关参数
@@ -152,7 +151,7 @@ int main(int argc, char* argv[]) {
     assert(epollfd != -1);
 
     add_fd(epollfd, listenfd, false);
-    HttpConnection::epoll_fd_ = epollfd;
+    HttpConnection::epollfd_ = epollfd;
 
     // 创建管道,注册pipefd[0]上的可读事件
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, pipefd);

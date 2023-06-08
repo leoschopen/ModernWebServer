@@ -29,10 +29,10 @@ const char *error_500_form =
         "There was an unusual problem serving the request file.\n";
 
 
-const char *doc_root = "/home/leo/webserver/ModernWebserver2/root";
+const char *doc_root = "/home/leo/webserver/ModernWebserver/root";
 
 
-int HttpConnection::epoll_fd_ = -1;
+int HttpConnection::epollfd_ = -1;
 int HttpConnection::user_count_ = 0;
 
 // 对文件描述符设置非阻塞
@@ -121,7 +121,7 @@ void HttpConnection::init() {
 void HttpConnection::init(int sockfd, const sockaddr_in &addr) {
     sockfd_ = sockfd;
     address_ = addr;
-    add_fd(epoll_fd_, sockfd_, true);
+    add_fd(epollfd_, sockfd_, true);
     ++user_count_;
     init();
 }
@@ -129,14 +129,14 @@ void HttpConnection::init(int sockfd, const sockaddr_in &addr) {
 void HttpConnection::process() {
     HTTP_CODE read_ret = process_read();
     if (read_ret == NO_REQUEST) {
-         mod_fd(epoll_fd_, sockfd_, EPOLLIN);
+         mod_fd(epollfd_, sockfd_, EPOLLIN);
         return;
     }
     bool write_ret = process_write(read_ret);
     if (!write_ret) {
         close_conn();
     }
-     mod_fd(epoll_fd_, sockfd_, EPOLLOUT);
+     mod_fd(epollfd_, sockfd_, EPOLLOUT);
 }
 
 // 从socket中读取数据到read_buf_
@@ -175,7 +175,7 @@ bool HttpConnection::read_once() {
 bool HttpConnection::write() {
     int temp = 0;
     if (bytes_to_send_ == 0) {
-        mod_fd(epoll_fd_, sockfd_, EPOLLIN);
+        mod_fd(epollfd_, sockfd_, EPOLLIN);
         init();
         return true;
     }
@@ -183,7 +183,7 @@ bool HttpConnection::write() {
         temp = writev(sockfd_, iv_, iv_count_);
         if (temp <= -1) {
             if (errno == EAGAIN) {
-                mod_fd(epoll_fd_, sockfd_, EPOLLOUT);
+                mod_fd(epollfd_, sockfd_, EPOLLOUT);
                 return true;
             }
             unmap();
@@ -203,7 +203,7 @@ bool HttpConnection::write() {
 
         if (bytes_to_send_ <= 0) {
             unmap();
-            mod_fd(epoll_fd_, sockfd_, EPOLLIN);
+            mod_fd(epollfd_, sockfd_, EPOLLIN);
             if (linger_) {
                 init();
                 return true;
@@ -234,7 +234,7 @@ void HttpConnection::init_mysql_result(SqlConnectionPool *connPool) {
 
 void HttpConnection::close_conn(bool real_close) {
     if (real_close && sockfd_ != -1) {
-        remove_fd(epoll_fd_, sockfd_);
+        remove_fd(epollfd_, sockfd_);
         sockfd_ = -1;
         --user_count_;
     }

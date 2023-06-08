@@ -4,6 +4,7 @@
 
 #ifndef SERVER_HTTP_CONNECTION_H
 #define SERVER_HTTP_CONNECTION_H
+
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
@@ -32,6 +33,7 @@
 #include "../log/server_log.h"
 #include "../utils/server_utils.h"
 #include "../utils/socket_utils.h"
+
 using std::map;
 using std::string;
 
@@ -66,19 +68,25 @@ public:
         INTERNAL_ERROR,  // 服务器内部错误
         CLOSED_CONNECTION // 客户端已经关闭连接了
     };
-    enum LINE_STATUS { LINE_OK = 0, LINE_BAD, LINE_OPEN }; // 从状态机的可能状态, LINE_OK表示读取到一个完整的行，LINE_BAD表示行出错，LINE_OPEN表示行数据尚且不完整
+    enum LINE_STATUS {
+        LINE_OK = 0, LINE_BAD, LINE_OPEN
+    }; // 从状态机的可能状态, LINE_OK表示读取到一个完整的行，LINE_BAD表示行出错，LINE_OPEN表示行数据尚且不完整
 
 public:
-    HttpConnection() = default;
-    ~HttpConnection() = default;
+    HttpConnection() {}
+
+    ~HttpConnection() {}
 
 public:
     void init(int sockfd, const sockaddr_in &addr);
+
     void close_conn(bool real_close = true);
+
     void process(); // 处理客户请求
     bool read_once(); // 非阻塞读操作
     bool write(); // 非阻塞写操作
     sockaddr_in *get_address() { return &address_; }
+
     void init_mysql_result(SqlConnectionPool *connPool); // 初始化数据库读取表
 
 private:
@@ -102,7 +110,7 @@ private:
     bool add_blank_line(); // 添加空行
 
 public:
-    static int epoll_fd_;
+    static int epollfd_;
     static int user_count_;
     MYSQL *mysql_;
 
@@ -131,11 +139,7 @@ private:
     char *request_header_content_;  // 存储请求头数据
     int bytes_to_send_;
     int bytes_have_send_;
-
-
-    ServerUtils *server_utils_ = new ServerUtils();
 };
-
 
 
 #endif //SERVER_HTTP_CONNECTION_H
