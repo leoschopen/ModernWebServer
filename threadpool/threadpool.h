@@ -1,6 +1,9 @@
-#ifndef THREADPOOL_H
-#define THREADPOOL_H
+//
+// Created by leo on 23-6-3.
+//
 
+#ifndef SERVER_THREADPOOL_H
+#define SERVER_THREADPOOL_H
 #include <list>
 #include <cstdio>
 #include <exception>
@@ -9,100 +12,99 @@
 #include "../CGImysql/sql_connection_pool.h"
 
 template <typename T>
-class threadpool
-{
+class ThreadPool {
 public:
-    /*thread_number是线程池中线程的数量，max_requests是请求队列中最多允许的、等待处理的请求的数量*/
-    threadpool(connection_pool *connPool, int thread_number = 8, int max_request = 10000);
-    ~threadpool();
-    bool append(T *request);
+    ThreadPool() = default;
 
+    ThreadPool(SqlConnectionPool *connectionPool, int curThreadNumber = 8, int maxRequests = 10000);
+
+    ~ThreadPool();
+    bool append(T *request);
 private:
-    /*工作线程运行的函数，它不断从工作队列中取出任务并执行之*/
     static void *worker(void *arg);
     void run();
-
 private:
-    int m_thread_number;        //线程池中的线程数
-    int m_max_requests;         //请求队列中允许的最大请求数
-    pthread_t *m_threads;       //描述线程池的数组，其大小为m_thread_number
-    std::list<T *> m_workqueue; //请求队列
-    locker m_queuelocker;       //保护请求队列的互斥锁
-    sem m_queuestat;            //是否有任务需要处理
-    bool m_stop;                //是否结束线程
-    connection_pool *m_connPool;  //数据库
+    int thread_number_;        //线程池中的线程数
+    int max_requests_;         //请求队列中允许的最大请求数
+    pthread_t *threads_;       //描述线程池的数组，其大小为m_thread_number
+    std::list<T *> request_queue_; //请求队列
+    Locker queue_locker_;       //保护请求队列的互斥锁
+    Semaphore queue_status_;            //是否有任务需要处理
+    bool stop_;                //是否结束线程
+    SqlConnectionPool *connection_pool_;  //数据库
 };
-template <typename T>
-threadpool<T>::threadpool( connection_pool *connPool, int thread_number, int max_requests) : m_thread_number(thread_number), m_max_requests(max_requests), m_stop(false), m_threads(NULL),m_connPool(connPool)
-{
-    if (thread_number <= 0 || max_requests <= 0)
-        throw std::exception();
-    m_threads = new pthread_t[m_thread_number];
-    if (!m_threads)
-        throw std::exception();
-    for (int i = 0; i < thread_number; ++i)
-    {
-        //printf("create the %dth thread\n",i);
-        if (pthread_create(m_threads + i, NULL, worker, this) != 0)
-        {
-            delete[] m_threads;
-            throw std::exception();
-        }
-        if (pthread_detach(m_threads[i]))
-        {
-            delete[] m_threads;
-            throw std::exception();
-        }
-    }
-}
-template <typename T>
-threadpool<T>::~threadpool()
-{
-    delete[] m_threads;
-    m_stop = true;
-}
-template <typename T>
-bool threadpool<T>::append(T *request)
-{
-    m_queuelocker.lock();
-    if (m_workqueue.size() > m_max_requests)
-    {
-        m_queuelocker.unlock();
-        return false;
-    }
-    m_workqueue.push_back(request);
-    m_queuelocker.unlock();
-    m_queuestat.post();
-    return true;
-}
-template <typename T>
-void *threadpool<T>::worker(void *arg)
-{
-    threadpool *pool = (threadpool *)arg;
-    pool->run();
-    return pool;
-}
-template <typename T>
-void threadpool<T>::run()
-{
-    while (!m_stop)
-    {
-        m_queuestat.wait();
-        m_queuelocker.lock();
-        if (m_workqueue.empty())
-        {
-            m_queuelocker.unlock();
-            continue;
-        }
-        T *request = m_workqueue.front();
-        m_workqueue.pop_front();
-        m_queuelocker.unlock();
-        if (!request)
-            continue;
 
-        connectionRAII mysqlcon(&request->mysql, m_connPool);
-        
+template<typename T>
+ThreadPool<T>::ThreadPool(SqlConnectionPool *connectionPool,int threadNumber, int maxRequests):
+                          thread_number_(threadNumber),max_requests_(maxRequests),
+                          connection_pool_(connectionPool),stop_(false),threads_(nullptr){
+    if(threadNumber<=0 || maxRequests<=0) {
+        throw std::exception();
+    }
+    threads_ = new pthread_t[thread_number_];
+    if(!threads_) {
+        throw std::exception();
+    }
+    for(int i=0;i<threadNumber;i++) {
+        if(pthread_create(threads_+i, nullptr, worker, this)!=0) {
+            delete [] threads_;
+            throw std::exception();
+        }
+        // 如果线程是 detached，则资源会随着线程函数结束，自动释放
+        if(pthread_detach(threads_[i])) {
+            delete [] threads_;
+            throw std::exception();
+        }
+    }
+}
+
+template<typename T>
+ThreadPool<T>::~ThreadPool() {
+    delete[] threads_;
+    stop_ = true;
+}
+
+template<typename T>
+void ThreadPool<T>::run() {
+    while(!stop_){
+        queue_status_.wait();
+        queue_locker_.lock();
+        if(request_queue_.empty()) {
+            queue_locker_.unlock();
+            continue;
+        }
+        T *request = request_queue_.front();
+        request_queue_.pop_front();
+        queue_locker_.unlock();
+        if(!request) {
+            continue;
+        }
+        ConnectionRAII mysqlConnection(&request->mysql_, connection_pool_);
         request->process();
     }
 }
-#endif
+
+template<typename T>
+void *ThreadPool<T>::worker(void *arg) {
+    ThreadPool *pool = (ThreadPool *)arg;
+    pool->run();
+    return pool;
+}
+
+template<typename T>
+bool ThreadPool<T>::append(T *request) {
+    queue_locker_.lock();
+    if(request_queue_.size()>max_requests_) {
+        queue_locker_.unlock();
+        return false;
+    }
+    request_queue_.push_back(request);
+    queue_locker_.unlock();
+    queue_status_.post();
+    return true;
+}
+
+
+
+
+#endif //SERVER_THREADPOOL_H

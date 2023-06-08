@@ -11,11 +11,10 @@
 #include <cassert>
 
 #include "./CGImysql/sql_connection_pool.h"
-#include "./http/http_conn.h"
-#include "./lock/locker.h"
-#include "./log/log.h"
+//#include "./http/http_connection.h"
 #include "./threadpool/threadpool.h"
-#include "./timer/lst_timer.h"
+#include "./http/http_conn.h"
+#include "./timer/server_timer.h"
 
 #define MAX_FD 65536            // 最大文件描述符
 #define MAX_EVENT_NUMBER 10000  // 最大事件数
@@ -28,13 +27,13 @@
 #define listenfdLT  // 水平触发阻塞
 
 // 这三个函数在http_conn.cpp中定义，改变链接属性
-extern int addfd(int epollfd, int fd, bool one_shot);
+extern int add_fd(int epollfd, int fd, bool one_shot);
 extern int remove(int epollfd, int fd);
 extern int setnonblocking(int fd);
 
 // 设置定时器相关参数
 static int pipefd[2];
-static sort_timer_lst timer_lst;
+static SortedTimerList timer_lst;
 static int epollfd = 0;
 
 // 信号处理函数
@@ -64,11 +63,11 @@ void timer_handler() {
 }
 
 // 定时器回调函数，删除非活动连接在socket上的注册事件，并关闭
-void cb_func(client_data* user_data) {
+void cb_func(ClientData * user_data) {
     epoll_ctl(epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0);
     assert(user_data);
     close(user_data->sockfd);
-    http_conn::m_user_count--;
+    HttpConnection::user_count_--;
     LOG_INFO("close fd %d", user_data->sockfd);
     Log::get_instance()->flush();
 }
@@ -98,22 +97,22 @@ int main(int argc, char* argv[]) {
     addsig(SIGPIPE, SIG_IGN);  // 忽略SIGPIPE信号
 
     // 创建数据库连接池
-    connection_pool* connPool = connection_pool::GetInstance();
-    connPool->init("localhost", "root", "Root123@", "yourdb", 3306, 8);
+    SqlConnectionPool* connPool = SqlConnectionPool::GetInstance();
+    connPool->init("/home/leo/webserver/ModernWebserver2/utils/config.ini");
 
     // 创建线程池
-    threadpool<http_conn>* pool = NULL;
+    ThreadPool<HttpConnection>* pool = NULL;
     try {
-        pool = new threadpool<http_conn>(connPool);
+        pool = new ThreadPool<HttpConnection>(connPool);
     } catch (...) {
         return 1;
     }
 
-    http_conn* users = new http_conn[MAX_FD];
+    HttpConnection* users = new HttpConnection[MAX_FD];
     assert(users);
 
     // 初始化数据库读取表
-    users->initmysql_result(connPool);
+    users->init_mysql_result(connPool);
 
     int listenfd = socket(PF_INET, SOCK_STREAM, 0);
     assert(listenfd >= 0);
@@ -133,6 +132,16 @@ int main(int argc, char* argv[]) {
     /* SO_REUSEADDR 允许端口被重复使用 */
     setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));
     ret = bind(listenfd, (struct sockaddr*)&address, sizeof(address));
+
+    // 打印listenfd的ip和端口号
+//    struct sockaddr_in addr;
+//    socklen_t len = sizeof(addr);
+//    getsockname(listenfd, (struct sockaddr*)&addr, &len);
+//    char ip[20];
+//    printf("ip=%s, port=%d\n", inet_ntop(AF_INET, &addr.sin_addr, ip, sizeof(ip)), ntohs(addr.sin_port));
+//
+//    return 0;
+
     assert(ret >= 0);
     ret = listen(listenfd, 5);
     assert(ret >= 0);
@@ -142,21 +151,21 @@ int main(int argc, char* argv[]) {
     epollfd = epoll_create(5);
     assert(epollfd != -1);
 
-    addfd(epollfd, listenfd, false);
-    http_conn::m_epollfd = epollfd;
+    add_fd(epollfd, listenfd, false);
+    HttpConnection::epoll_fd_ = epollfd;
 
     // 创建管道,注册pipefd[0]上的可读事件
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, pipefd);
     assert(ret != -1);
     // 管道写端写入信号值，管道读端通过I/O复用系统监测读事件
     setnonblocking(pipefd[1]);
-    addfd(epollfd, pipefd[0], false);
+    add_fd(epollfd, pipefd[0], false);
 
     addsig(SIGALRM, sig_handler, false);
     addsig(SIGTERM, sig_handler, false);
     bool stop_server = false;
 
-    client_data* users_timer = new client_data[MAX_FD];
+    ClientData* users_timer = new ClientData[MAX_FD];
 
     bool timeout = false;
     alarm(TIMESLOT);
@@ -182,7 +191,7 @@ int main(int argc, char* argv[]) {
                     LOG_ERROR("%s:errno is:%d", "accept error", errno);
                     continue;
                 }
-                if (http_conn::m_user_count >= MAX_FD) {
+                if (HttpConnection::user_count_ >= MAX_FD) {
                     show_error(connfd, "Internal server busy");
                     LOG_ERROR("%s", "Internal server busy");
                     continue;
@@ -193,8 +202,8 @@ int main(int argc, char* argv[]) {
                 // 创建定时器，设置回调函数和超时时间，绑定用户数据，将定时器添加到链表中
                 users_timer[connfd].address = client_address;
                 users_timer[connfd].sockfd = connfd;
-                util_timer* timer = new util_timer;
-                timer->user_data = &users_timer[connfd];
+                Timer* timer = new Timer;
+                timer->client_data = &users_timer[connfd];
                 timer->cb_func = cb_func;
                 time_t cur = time(NULL);
                 timer->expire = cur + 3 * TIMESLOT;
@@ -211,7 +220,7 @@ int main(int argc, char* argv[]) {
                         LOG_ERROR("%s:errno is:%d", "accept error", errno);
                         break;
                     }
-                    if (http_conn::m_user_count >= MAX_FD) {
+                    if (HttpConnection::m_user_count >= MAX_FD) {
                         show_error(connfd, "Internal server busy");
                         LOG_ERROR("%s", "Internal server busy");
                         break;
@@ -236,7 +245,7 @@ int main(int argc, char* argv[]) {
             // 发生三种情况，1. 对端断开连接或半关闭连接，2. 文件描述符被挂起或被关闭事件，3. 发生错误 的任意一种，则处理
             else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
                 // 服务器端关闭连接，移除对应的定时器
-                util_timer* timer = users_timer[sockfd].timer;
+                Timer* timer = users_timer[sockfd].timer;
                 timer->cb_func(&users_timer[sockfd]);
 
                 if (timer) {
@@ -270,7 +279,7 @@ int main(int argc, char* argv[]) {
 
             // 处理客户连接上接收到的数据
             else if (events[i].events & EPOLLIN) {
-                util_timer* timer = users_timer[sockfd].timer;
+                Timer* timer = users_timer[sockfd].timer;
                 if (users[sockfd].read_once()) {
                     LOG_INFO("deal with the client(%s)",
                              inet_ntoa(users[sockfd].get_address()->sin_addr));
@@ -294,7 +303,7 @@ int main(int argc, char* argv[]) {
                     }
                 }
             } else if (events[i].events & EPOLLOUT) {
-                util_timer* timer = users_timer[sockfd].timer;
+                Timer* timer = users_timer[sockfd].timer;
                 if (users[sockfd].write()) {
                     LOG_INFO("send data to the client(%s)",
                              inet_ntoa(users[sockfd].get_address()->sin_addr));

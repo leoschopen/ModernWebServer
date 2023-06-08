@@ -5,9 +5,10 @@ reference.md
 *Log
 
 .vscode
-
+build
 .git
-
+.idea
+cmake-build-debug
 try
 
 root/*.gif
