@@ -11,7 +11,8 @@
 #include "./CGImysql/sql_connection_pool.h"
 #include "./http/http_connection.h"
 #include "./threadpool/threadpool.h"
-#include "./timer/server_timer.h"
+#include "./timer/timer.h"
+//#include "./server/webserver.h"
 #include "./utils/socket_utils.h"
 
 #define MAX_FD 65536            // 最大文件描述符
@@ -67,7 +68,7 @@ void cb_func(ClientData * user_data) {
     close(user_data->sockfd);
     HttpConnection::user_count_--;
     LOG_INFO("close fd %d", user_data->sockfd);
-    Log::get_instance()->flush();
+    Log::Instance()->flush();
 }
 
 void show_error(int connfd, const char* info) {
@@ -76,13 +77,15 @@ void show_error(int connfd, const char* info) {
     close(connfd);
 }
 
+
+
 int main(int argc, char* argv[]) {
 #ifdef ASYNLOG
-    Log::get_instance()->init("ServerLog", 2000, 800000, 8);  // 异步日志模型
+    Log::Instance()->init("ServerLog", 2000, 800000, 8);  // 异步日志模型
 #endif
 
 #ifdef SYNLOG
-    Log::get_instance()->init("ServerLog", 2000, 800000, 0);  // 同步日志模型
+    Log::Instance()->init(1,"ServerLog");  // 同步日志模型
 #endif
 
     if (argc <= 1) {
@@ -270,7 +273,7 @@ int main(int argc, char* argv[]) {
                 if (users[sockfd].read_once()) {
                     LOG_INFO("deal with the client(%s)",
                              inet_ntoa(users[sockfd].get_address()->sin_addr));
-                    Log::get_instance()->flush();
+                    Log::Instance()->flush();
                     // 若监测到读事件，将该事件放入请求队列
                     pool->append(users + sockfd);
 
@@ -280,7 +283,7 @@ int main(int argc, char* argv[]) {
                         time_t cur = time(NULL);
                         timer->expire = cur + 3 * TIMESLOT;
                         LOG_INFO("%s", "adjust timer once");
-                        Log::get_instance()->flush();
+                        Log::Instance()->flush();
                         timer_lst.adjust_timer(timer);
                     }
                 } else {
@@ -294,7 +297,7 @@ int main(int argc, char* argv[]) {
                 if (users[sockfd].write()) {
                     LOG_INFO("send data to the client(%s)",
                              inet_ntoa(users[sockfd].get_address()->sin_addr));
-                    Log::get_instance()->flush();
+                    Log::Instance()->flush();
 
                     // 若有数据传输，则将定时器往后延迟3个单位
                     // 并对新的定时器在链表上的位置进行调整
@@ -302,7 +305,7 @@ int main(int argc, char* argv[]) {
                         time_t cur = time(NULL);
                         timer->expire = cur + 3 * TIMESLOT;
                         LOG_INFO("%s", "adjust timer once");
-                        Log::get_instance()->flush();
+                        Log::Instance()->flush();
                         timer_lst.adjust_timer(timer);
                     }
                 } else {

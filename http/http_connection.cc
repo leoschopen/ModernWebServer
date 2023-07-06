@@ -409,7 +409,7 @@ HttpConnection::HTTP_CODE HttpConnection::parse_headers(char *text) {
         host_ = text;
     } else {
         LOG_INFO("oop!unknow header %s", text);
-        Log::get_instance()->flush();
+        Log::Instance()->flush();
     }
     return NO_REQUEST;
 }
@@ -603,7 +603,7 @@ bool HttpConnection::add_response(const char *format, ...) {
     write_idx_ += len;
     va_end(arg_list);
     LOG_INFO("request:%s", write_buf_);
-    Log::get_instance()->flush();
+    Log::Instance()->flush();
     return true;
 }
 

@@ -2,7 +2,7 @@
 // Created by leo on 23-6-2.
 //
 
-#include "server_timer.h"
+#include "timer.h"
 
 SortedTimerList::~SortedTimerList() {
     Timer *tmp = head;
@@ -76,7 +76,7 @@ void SortedTimerList::adjust_timer(Timer *timer) {
 void SortedTimerList::tick() {
     if(!head) return;
     LOG_INFO("%s", "timer tick");
-    Log::get_instance()->flush();
+    Log::Instance()->flush();
     Timer *tmp = head;
     time_t cur = time(nullptr);
     while(tmp){
