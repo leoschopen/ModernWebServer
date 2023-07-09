@@ -40,7 +40,7 @@ c++14 重构 QPS 3,000+
 ## TODO
 - [x] 重写线程池
 - [x] 智能指针
-- [] 协程调度
+- [ ] 协程调度
 
 7.5
 加入heaptimer、epoller、webserver、pool文件夹下的数据库连接池与线程池，但均未调试
