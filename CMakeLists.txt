@@ -10,18 +10,32 @@ set(SOURCES
         log/server_log.h
         log/blockqueue.h
         lock/locker.h
-        http/http_connection.cc
-        http/http_connection.h
-        threadpool/threadpool.h
+        http/httpconn.cc
+        http/httpconn.h
+        http/httprequest.cc
+        http/httprequest.h
+        http/httpresponse.cc
+        http/httpresponse.h
         utils/server_utils.cc
         utils/server_utils.h
         utils/socket_utils.h
+        pool/sqlconnpool.cc
+        pool/sqlconnpool.h
+        pool/sqlconnRAII.h
+        pool/threadpool.h
         CGImysql/sql_connection_pool.h
         CGImysql/sql_connection_pool.cc
+        timer/heaptimer.cc
+        timer/heaptimer.h
         timer/timer.cc
         timer/timer.h
         buffer/buffer.cc
-        buffer/buffer.h)
+        buffer/buffer.h
+        server/webserver.cc
+        server/webserver.h
+        server/epoller.cc
+        server/epoller.h
+        )
 add_executable(server2 ${SOURCES})
 
 target_link_libraries(server2 pthread mysqlclient)

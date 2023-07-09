@@ -42,7 +42,8 @@ void Log::SetLevel(int level) {
 void Log::init(int level = 1, const char* file_name, int max_queue_size) {
     // 參數初始化
     is_open_ = true;
-    if (max_queue_size >= 1) {
+    level_ = level;
+    if (max_queue_size > 0) {
         is_async_ = true;
         unique_ptr<BlockDeque<std::string>> new_queue(new BlockDeque<std::string>);
         log_block_queue_ = std::move(new_queue);
@@ -53,14 +54,11 @@ void Log::init(int level = 1, const char* file_name, int max_queue_size) {
     }
 
     lines_count_ = 0;
-    level_ = level;
 
     //获取当前时间
     time_t local_time = time(nullptr);
     struct tm *time_now = localtime(&local_time);
     struct tm time_log = *time_now;
-
-
 
     //获取日志文件名
     const char *p = strrchr(file_name, '/');
@@ -170,7 +168,9 @@ void Log::write(int level, const char *format, ...) {
         if (is_async_ && log_block_queue_ && !log_block_queue_->full()) {
             log_block_queue_->push(buffer_.RetrieveAllToStr());
         } else {
-            fputs(buffer_.Peek(), log_fp_);
+            char *buffer_start = const_cast<char *>(buffer_.Peek());
+            printf("%s", buffer_start);
+            fputs(buffer_start, log_fp_);
         }
         buffer_.RetrieveAll();
     }

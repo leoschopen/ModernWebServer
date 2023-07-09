@@ -1,113 +1,215 @@
-//
-// Created by leo on 23-6-2.
-//
+# include "timer.h"
 
-#include "timer.h"
 
-SortedTimerList::~SortedTimerList() {
-    Timer *tmp = head;
-    while (tmp) {
-        head = tmp->next;
-        delete tmp;
-        tmp = head;
+Timer::Timer(uint64_t ms, TimeoutCallBack cb, bool recurring, TimerManger *manager) {
+    recurring_ = recurring;
+    manager_ = manager;
+    cb_ = std::move(cb);
+    ms_ = ms;
+    expires_ = Clock::now() + MS(ms);
+}
+
+Timer::Timer(TimeStamp expires) {
+    expires_ = expires;
+}
+
+bool Timer::cancel() {
+    std::lock_guard<std::mutex> lock(mtx_);
+    if (cb_) {
+        cb_ = nullptr;
+        auto ret = manager_->timers_.find(shared_from_this());
+        if (ret != manager_->timers_.end()) {
+            manager_->timers_.erase(ret);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Timer::refresh() {
+    std::lock_guard<std::mutex> lock(mtx_);
+    if (!cb_) {
+        return false;
+    }
+    auto ret = manager_->timers_.find(shared_from_this());
+    if (ret == manager_->timers_.end()) {
+        return false;
+    }
+    manager_->timers_.erase(ret);
+    expires_ = Clock::now() + MS(ms_);
+
+    // todo: 是否需要调用addTimer
+    manager_->timers_.insert(shared_from_this());
+    return true;
+}
+
+bool Timer::reset(uint64_t ms, bool from_now) {
+    if (ms == ms_ && !from_now) {
+        return true;
+    }
+    std::lock_guard<std::mutex> lock(mtx_);
+    if (!cb_) {
+        return false;
+    }
+    auto ret = manager_->timers_.find(shared_from_this());
+    if (ret == manager_->timers_.end()) {
+        return false;
+    }
+    manager_->timers_.erase(ret);
+    /**
+     * 从当前时间或者上一次执行时间开始计算，计算出定时器的新的执行时间。
+     * 如果是从当前时间开始计算，那么获取当前时间；否则，使用定时器原来的
+     * 下一次执行时间减去定时器的执行间隔得到执行时间的起始时间。
+     */
+    TimeStamp now = Clock::now();
+    if (from_now) {
+        expires_ = now + MS(ms);
+    }
+    ms_ = ms;
+    // todo: 是否需要传入参数lock
+    manager_->addTimer(shared_from_this(), lock);
+    return true;
+}
+
+Timer::ptr TimerManger::addTimer(uint64_t ms, const TimeoutCallBack &cb, bool recurring) {
+    Timer::ptr timer(new Timer(ms, cb, recurring, this));
+    std::lock_guard<std::mutex> lock(mtx_);
+    addTimer(timer, lock);
+    return timer;
+}
+
+void TimerManger::addTimer(const Timer::ptr& timer, std::lock_guard<std::mutex> &lock) {
+    auto it = timers_.insert(timer).first;
+    bool at_front = (it == timers_.begin()) && !tickled_;
+    if (at_front) {
+        tickled_ = true;
+//        onTimerInsertedAtFront();
+    }
+//    lock.unlock();
+//    if (at_front) {
+//        onTimerInsertedAtFront();
+//    }
+}
+
+
+
+static void OnTimer(const std::weak_ptr<void>& weak_cond, std::function<void()> cb) {
+    std::shared_ptr<void> tmp = weak_cond.lock();
+    if (tmp) {
+        cb();
     }
 }
 
-void SortedTimerList::add_timer(Timer *timer) {
-    if(!timer) return;
-    if(!head) {
-        head = tail = timer;
-        return;
-    }
-    if(timer->expire < head->expire) {
-        timer->next = head;
-        head->prev = timer;
-        head = timer;
-        return;
-    }
-    add_timer(timer, head);
+Timer::ptr TimerManger::addConditionTimer(uint64_t ms, const TimeoutCallBack &cb,
+                                          const std::weak_ptr<void>& weak_cond,
+                                          bool recurring) {
+    // return addTimer(ms, std::bind(&OnTimer, weak_cond, cb), recurring);
+    return addTimer(ms, [weak_cond, cb] { return OnTimer(weak_cond, cb); }, recurring);
 }
 
-void SortedTimerList::del_timer(Timer *timer) {
-    if (!timer) {
-        return;
+uint64_t TimerManger::getNextTimer() {
+    std::lock_guard<std::mutex> lock(mtx_);
+    tickled_ = false;
+    if (timers_.empty()) {
+        return ~0ull;
     }
-    if ((timer == head) && (timer == tail)) {
-        delete timer;
-        head = nullptr;
-        tail = nullptr;
-        return;
-    }
-    if (timer == head) {
-        head = head->next;
-        head->prev = nullptr;
-        delete timer;
-        return;
-    }
-    if (timer == tail) {
-        tail = tail->prev;
-        tail->next = nullptr;
-        delete timer;
-        return;
-    }
-    timer->prev->next = timer->next;
-    timer->next->prev = timer->prev;
-    delete timer;
-}
-
-void SortedTimerList::adjust_timer(Timer *timer) {
-    if(!timer) return;
-    Timer *tmp = timer->next;
-    if (!tmp || (timer->expire < tmp->expire)) {
-        return;
-    }
-    if (timer == head){
-        head = head -> next;
-        head->prev = nullptr;
-        timer->next = nullptr;
-        add_timer(timer, head);
-    }else{
-        timer->prev->next = timer->next;
-        timer->next->prev = timer->prev;
-        add_timer(timer, timer->next);
+    const Timer::ptr& next = *timers_.begin();
+    TimeStamp now = Clock::now();
+    if (now >= next->expires_) {
+        return 0;
+    } else {
+        return std::chrono::duration_cast<MS>(next->expires_ - now).count();
     }
 }
 
-void SortedTimerList::tick() {
-    if(!head) return;
-    LOG_INFO("%s", "timer tick");
-    Log::Instance()->flush();
-    Timer *tmp = head;
-    time_t cur = time(nullptr);
-    while(tmp){
-        if(cur<tmp->expire) break;
-        tmp->cb_func(tmp->client_data);
-        head = tmp->next;
-        if(head) head->prev = nullptr;
-        delete tmp;
-        tmp = head;
-    }
-}
-
-void SortedTimerList::add_timer(Timer *timer, Timer *list_head) {
-    Timer *prev = list_head;
-    Timer *tmp = prev->next;
-    while (tmp) {
-        if (timer->expire < tmp->expire) {
-            prev->next = timer;
-            timer->next = tmp;
-            tmp->prev = timer;
-            timer->prev = prev;
+void TimerManger::listExpiredCb(std::vector<std::function<void()>>& cbs) {
+    TimeStamp now = Clock::now();
+    std::vector<Timer::ptr> expired;
+    {
+        std::lock_guard<std::mutex> lock(mtx_);
+        if (timers_.empty()) {
             return;
         }
-        prev = tmp;
-        tmp = tmp->next;
     }
-    if (!tmp) {
-        prev ->next = timer;
-        timer->prev = prev;
-        timer->next = nullptr;
-        tail = timer;
+    std::lock_guard<std::mutex> lock(mtx_);
+    if (timers_.empty()) {
+        return;
+    }
+    bool rollover = detectClockRollover(now);
+    if (!rollover && (*timers_.begin())->expires_ > now) {
+        return;
+    }
+    Timer::ptr now_timer(new Timer(now));
+    auto it = rollover ? timers_.end() : timers_.lower_bound(now_timer);
+    while (it != timers_.end() && (*it)->expires_ == now) {
+        ++it;
+    }
+    expired.insert(expired.begin(), timers_.begin(), it);
+    timers_.erase(timers_.begin(), it);
+    cbs.reserve(expired.size());
+    for (auto& timer : expired) {
+        cbs.push_back(timer->cb_);
+        if (timer->recurring_) {
+            timer->expires_ = now + MS(timer->ms_);
+            timers_.insert(timer);
+        } else {
+            timer->cb_ = nullptr;
+        }
     }
 }
 
+bool TimerManger::hasTimer() {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return !timers_.empty();
+}
+
+bool TimerManger::detectClockRollover(TimeStamp now) {
+    bool rollover = false;
+    if (now < previouse_time_ && now < (previouse_time_ - MS(60 * 60 * 1000 * 2))) {
+        rollover = true;
+    }
+    previouse_time_ = now;
+    return rollover;
+}
+
+void TimerManger::tick() {
+    std::vector<std::function<void()>> cbs;
+    listExpiredCb(cbs);
+    std::vector<std::function<void()>>::iterator it;
+    for (it = cbs.begin(); it != cbs.end(); ++it) {
+        (*it)();
+    }
+}
+
+uint64_t TimerManger::getNearestTime() {
+    tick();
+    uint64_t res = -1;
+    if(!timers_.empty()) {
+        res = std::chrono::duration_cast<MS>((*timers_.begin())->expires_ - Clock::now()).count();
+        if(res < 0) {
+            res = 0;
+        }
+    }
+    return res;
+}
+
+bool Timer::Comparator::operator()(const Timer::ptr &lhs, const Timer::ptr &rhs) const {
+    if(!lhs && !rhs) {
+        return false;
+    }
+    if(!lhs) {
+        return true;
+    }
+    if(!rhs) {
+        return false;
+    }
+    // 升序
+    if(lhs->expires_ < rhs->expires_) {
+        return true;
+    }
+    if(rhs->expires_ < lhs->expires_) {
+        return false;
+    }
+    // 如果两个定时器触发时间相同，则比较它们在内存中的地址，以保证排序的稳定性。
+    return lhs.get() < rhs.get();
+}
