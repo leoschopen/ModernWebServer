@@ -12,9 +12,13 @@
 
 ## 技术栈：
 C++11标准
+
 Reactor模式
+
 多线程编程
+
 网络编程
+
 CGI编程
 
 ## 系统架构：
@@ -24,8 +28,11 @@ CGI编程
 该系统经过多次性能测试，具有高并发性和稳定性。测试环境为Ubuntu 18.04.6 LTS，Intel(R) Core(TM) i5-8500 CPU @ 3.00GHz，16GB内存。
 
 测试结果如下：
+
 TinyWebServer 16,000+
+
 c++11 TinyWebServer 10,000+
+
 c++14 重构 QPS 3,000+
 
 
@@ -33,7 +40,7 @@ c++14 重构 QPS 3,000+
 ## TODO
 - [x] 重写线程池
 - [x] 智能指针
-- [x] 协程调度
+- [] 协程调度
 
 7.5
 加入heaptimer、epoller、webserver、pool文件夹下的数据库连接池与线程池，但均未调试
