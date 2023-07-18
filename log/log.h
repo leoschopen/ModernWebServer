@@ -1,45 +1,42 @@
+/*
+ * @Author       : mark
+ * @Date         : 2020-06-16
+ * @copyleft Apache 2.0
+ */ 
 #ifndef LOG_H
 #define LOG_H
 
-#include <pthread.h>
-#include <cstdarg>
-#include <cstdio>
-#include <cstring>
-#include <sys/stat.h>         //mkdir
-
-#include <iostream>
-#include <string>
-#include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
-
-
+#include <sys/time.h>
+#include <string.h>
+#include <stdarg.h>           // vastart va_end
+#include <assert.h>
+#include <sys/stat.h>         //mkdir
 #include "blockqueue.h"
 #include "../buffer/buffer.h"
 
 class Log {
 public:
-    static Log *Instance(){
-        static Log instance;
-        return &instance;
-    }
+    void init(int level, const char* path = "./log", 
+                const char* suffix =".log",
+                int maxQueueCapacity = 1024);
+
+    static Log* Instance();
     static void FlushLogThread();
 
-    void init(int level, const char *path = "../ServerLog", 
-                const char* suffix =".log",int max_queue_size = 1024);
-
-    void write(int level, const char *format, ...);
+    void write(int level, const char *format,...);
     void flush();
 
     int GetLevel();
     void SetLevel(int level);
-    bool IsOpen() const { return is_open_; }
-
+    bool IsOpen() { return isOpen_; }
+    
 private:
     Log();
     void AppendLogLevelTitle_(int level);
     virtual ~Log();
-    // 异步写日志，声明为私有，不允许外部调用，只能通过flush_log_thread()调用
     void AsyncWrite_();
 
 private:
@@ -47,22 +44,23 @@ private:
     static const int LOG_NAME_LEN = 256;
     static const int MAX_LINES = 50000;
 
-    const char *path_; 
-    const char *suffix_;      // log后缀名
+    const char* path_;
+    const char* suffix_;
 
+    int MAX_LINES_;
 
-    bool is_open_;           // 是否打开日志
-    long long lines_count_;  // 日志行数记录
+    int lineCount_;
+    int toDay_;
 
-    int date_of_today_;
-
-    Buffer buffer_;
+    bool isOpen_;
+ 
+    Buffer buff_;
     int level_;
-    bool is_async_;// 是否同步标志位
+    bool isAsync_;
 
-    FILE *log_fp_;
-    std::unique_ptr<BlockDeque<std::string>> log_block_queue_; // 阻塞队列
-    std::unique_ptr<std::thread> write_thread_;
+    FILE* fp_;
+    std::unique_ptr<BlockDeque<std::string>> deque_; 
+    std::unique_ptr<std::thread> writeThread_;
     std::mutex mtx_;
 };
 
@@ -80,4 +78,4 @@ private:
 #define LOG_WARN(format, ...) do {LOG_BASE(2, format, ##__VA_ARGS__)} while(0);
 #define LOG_ERROR(format, ...) do {LOG_BASE(3, format, ##__VA_ARGS__)} while(0);
 
-#endif
+#endif //LOG_H

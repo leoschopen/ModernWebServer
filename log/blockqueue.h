@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <sys/time.h>
 #include <assert.h>
+
 template<class T>
 class BlockDeque {
 public:
@@ -69,7 +70,7 @@ BlockDeque<T>::~BlockDeque() {
 
 template<class T>
 void BlockDeque<T>::close() {
-    {
+    {   
         std::lock_guard<std::mutex> locker(mtx_);
         deq_.clear();
         isClose_ = true;
@@ -111,16 +112,6 @@ template<class T>
 size_t BlockDeque<T>::capacity() {
     std::lock_guard<std::mutex> locker(mtx_);
     return capacity_;
-}
-
-template<class T>
-void BlockDeque<T>::push(const T &item) {
-    std::unique_lock<std::mutex> locker(mtx_);
-    while(deq_.size() >= capacity_) {
-        condProducer_.wait(locker);
-    }
-    deq_.push_back(item);
-    condConsumer_.notify_one();
 }
 
 template<class T>
@@ -174,8 +165,8 @@ template<class T>
 bool BlockDeque<T>::pop(T &item, int timeout) {
     std::unique_lock<std::mutex> locker(mtx_);
     while(deq_.empty()){
-        if(condConsumer_.wait_for(locker, std::chrono::seconds(timeout))
-           == std::cv_status::timeout){
+        if(condConsumer_.wait_for(locker, std::chrono::seconds(timeout)) 
+                == std::cv_status::timeout){
             return false;
         }
         if(isClose_){

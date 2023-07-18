@@ -26,14 +26,18 @@ CGI编程
 
 ## 性能测试：
 该系统经过多次性能测试，具有高并发性和稳定性。测试环境为Ubuntu 18.04.6 LTS，Intel(R) Core(TM) i5-8500 CPU @ 3.00GHz，16GB内存。
-
+./webbench-1.5/webbench -c 100 -t 10 http://127.0.0.1:8001/
 测试结果如下：
 
 TinyWebServer 16,000+
 
-c++11 TinyWebServer 10,000+
+version1.1 18000+
 
-c++14 重构 QPS 3,000+
+WebServer-c++11 11,000+
+
+c++14 重构 
+同步日志 QPS 3,000+
+异步日志 QPS 5,000+
 
 
 

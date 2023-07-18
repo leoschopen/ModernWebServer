@@ -22,19 +22,21 @@ WebServer::WebServer(
     SqlConnPool::Instance()->Init("localhost", sqlPort, sqlUser, sqlPwd, dbName, connPoolNum);
 
     InitEventMode_(trigMode);
-    Log::Instance()->init(logLevel, "Server");
     if (!InitSocket_()) { isClose_ = true; }
 
-    if (isClose_) { LOG_ERROR("========== Server init error!=========="); }
-    else {
-        LOG_INFO("========== Server init ==========");
-        LOG_INFO("Port:%d, OpenLinger: %s", port_, OptLinger ? "true" : "false");
-        LOG_INFO("Listen Mode: %s, OpenConn Mode: %s",
-                 (listenEvent_ & EPOLLET ? "ET" : "LT"),
-                 (connEvent_ & EPOLLET ? "ET" : "LT"));
-        LOG_INFO("LogSys level: %d", logLevel);
-        LOG_INFO("srcDir: %s", HttpConn::srcDir);
-        LOG_INFO("SqlConnPool num: %d, ThreadPool num: %d", connPoolNum, threadNum);
+    if(openLog){
+        Log::Instance()->init(logLevel, "../ServerLog", ".log", logQueSize);
+        if (isClose_) { LOG_ERROR("========== Server init error!=========="); }
+        else {
+            LOG_INFO("========== Server init ==========");
+            LOG_INFO("Port:%d, OpenLinger: %s", port_, OptLinger ? "true" : "false");
+            LOG_INFO("Listen Mode: %s, OpenConn Mode: %s",
+                    (listenEvent_ & EPOLLET ? "ET" : "LT"),
+                    (connEvent_ & EPOLLET ? "ET" : "LT"));
+            LOG_INFO("LogSys level: %d", logLevel);
+            LOG_INFO("srcDir: %s", HttpConn::srcDir);
+            LOG_INFO("SqlConnPool num: %d, ThreadPool num: %d", connPoolNum, threadNum);
+        }
     }
 }
 
