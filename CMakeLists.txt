@@ -9,26 +9,18 @@ set(SOURCES
         log/server_log.cc
         log/server_log.h
         log/blockqueue.h
-        lock/locker.h
         http/httpconn.cc
         http/httpconn.h
         http/httprequest.cc
         http/httprequest.h
         http/httpresponse.cc
         http/httpresponse.h
-        utils/server_utils.cc
-        utils/server_utils.h
-        utils/socket_utils.h
         pool/sqlconnpool.cc
         pool/sqlconnpool.h
         pool/sqlconnRAII.h
         pool/threadpool.h
-        CGImysql/sql_connection_pool.h
-        CGImysql/sql_connection_pool.cc
         timer/heaptimer.cc
         timer/heaptimer.h
-        timer/timer.cc
-        timer/timer.h
         buffer/buffer.cc
         buffer/buffer.h
         server/webserver.cc
@@ -36,6 +28,18 @@ set(SOURCES
         server/epoller.cc
         server/epoller.h
         )
-add_executable(server2 ${SOURCES})
 
-target_link_libraries(server2 pthread mysqlclient)
+add_executable(${PROJECT_NAME} ${SOURCES})
+
+target_compile_options(${PROJECT_NAME} PRIVATE -O3 -Wall -g)
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    log
+    http
+    pool
+    timer
+    buffer
+    server
+)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE pthread mysqlclient)
