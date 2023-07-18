@@ -8,6 +8,5 @@ try
 refer
 ServerLog
 old_version
-root/*.gif
-root/*.jpg
-root/*.mp4
+root
+resources
