@@ -37,6 +37,7 @@ void SqlConnPool::Init(const char* host, int port,
         connQue_.push(sql);
     }
     MAX_CONN_ = connSize;
+    // 创建一个未命名信号量，并将其初始化为 MAX_CONN_ , 0表示线程间共享，进程间不共享
     sem_init(&semId_, 0, MAX_CONN_);
 }
 
@@ -69,6 +70,7 @@ void SqlConnPool::ClosePool() {
         connQue_.pop();
         mysql_close(item);
     }
+    // 关闭函数库调用
     mysql_library_end();        
 }
 
