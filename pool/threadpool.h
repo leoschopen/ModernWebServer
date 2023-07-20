@@ -54,7 +54,7 @@ public:
     void AddTask(F&& task) {
         {
             std::lock_guard<std::mutex> locker(pool_->mtx);
-            pool_->tasks.emplace(std::forward<F>(task));
+            pool_->tasks.emplace(std::forward<F>(task)); // 避免了不必要的拷贝或移动操作
         }
         pool_->cond.notify_one();
     }

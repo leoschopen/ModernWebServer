@@ -92,7 +92,6 @@ void TimerManger::addTimer(const Timer::ptr& timer, std::lock_guard<std::mutex> 
 }
 
 
-
 static void OnTimer(const std::weak_ptr<void>& weak_cond, std::function<void()> cb) {
     std::shared_ptr<void> tmp = weak_cond.lock();
     if (tmp) {

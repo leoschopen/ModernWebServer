@@ -4,6 +4,8 @@
 */
 
 #include "heaptimer.h"
+
+// 上浮，从下往上调整堆
 void HeapTimer::siftup_(size_t i) {
     assert(i >= 0 && i < heap_.size());
     size_t j = (i - 1) / 2;
@@ -23,6 +25,7 @@ void HeapTimer::SwapNode_(size_t i, size_t j) {
     ref_[heap_[j].id] = j;
 }
 
+// 下浮，将已有的节点更新时间并向下调整
 bool HeapTimer::siftdown_(size_t index, size_t n) {
     assert(index >= 0 && index < heap_.size());
     assert(n >= 0 && n <= heap_.size());

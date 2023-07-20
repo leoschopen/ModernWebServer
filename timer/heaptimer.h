@@ -61,7 +61,7 @@ private:
 
     std::vector<TimerNode> heap_;
 
-    std::unordered_map<int, size_t> ref_;
+    std::unordered_map<int, size_t> ref_; // 哈希表，用于记录定时任务id(使用时为客户端的fd表示)在堆中的下标
 };
 
 

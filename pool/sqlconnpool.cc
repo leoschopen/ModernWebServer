@@ -1,8 +1,10 @@
 /*
- * @Author       : mark
- * @Date         : 2020-06-17
- * @copyleft Apache 2.0
- */ 
+ * @Author: Leo
+ * @Date: 2023-07-09 11:00:35
+ * @LastEditors: Leo
+ * @LastEditTime: 2023-07-18 22:30:29
+ * @Description: 数据库连接池
+ */
 
 #include "sqlconnpool.h"
 using namespace std;
